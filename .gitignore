@@ -1,5 +1,35 @@
+# Miscellaneous
+*.class
+*.log
+*.swp
+.DS_Store
+
+# IntelliJ / Android Studio
+*.iml
+*.ipr
+*.iws
+.idea/
+
+# Flutter/Dart/Pub
+**/doc/api/
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.pub-cache/
+.pub/
+/build/
+build/
+
+# Android
 .gradle
 /local.properties
-/.idea/workspace.xml
-.DS_Store
-/build/
+android/.gradle/
+android/captures/
+android/.cxx/
+
+# iOS / macOS (CocoaPods + ephemeral)
+**/Pods/
+ios/Flutter/flutter_export_environment.sh
+ios/Flutter/Generated.xcconfig
+ios/Flutter/ephemeral/
+**/.symlinks/
