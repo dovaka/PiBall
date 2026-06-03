@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../models/app_settings.dart';
+import '../services/declination_locator.dart';
 
 /// Edits [AppSettings]. Returns the updated settings via Navigator.pop.
 class SettingsScreen extends StatefulWidget {
@@ -14,6 +15,7 @@ class SettingsScreen extends StatefulWidget {
 
 class _SettingsScreenState extends State<SettingsScreen> {
   late AppSettings _s = widget.settings;
+  bool _locating = false;
 
   late final _ascent = TextEditingController(
     text: _s.ascentRateFtPerMin.toStringAsFixed(0),
@@ -27,6 +29,32 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _ascent.dispose();
     _decl.dispose();
     super.dispose();
+  }
+
+  Future<void> _useLocation() async {
+    setState(() => _locating = true);
+    try {
+      final r = await fetchDeclinationFromLocation();
+      if (!mounted) return;
+      setState(() {
+        _s = _s.copyWith(declinationDeg: r.declinationDeg);
+        _decl.text = r.declinationDeg.toStringAsFixed(1);
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Declination ${r.declinationDeg.toStringAsFixed(1)}° at '
+            '${r.latitude.toStringAsFixed(3)}, ${r.longitude.toStringAsFixed(3)}',
+          ),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('$e')));
+    } finally {
+      if (mounted) setState(() => _locating = false);
+    }
   }
 
   void _commitText() {
@@ -59,6 +87,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
             suffix: '° East',
             help: 'Added to the compass bearing for true north. Look up your '
                 'site (e.g. NOAA), East positive, West negative.',
+          ),
+          const SizedBox(height: 8),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: OutlinedButton.icon(
+              onPressed: _locating ? null : _useLocation,
+              icon: _locating
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.my_location),
+              label: Text(_locating ? 'Locating…' : 'Use my location'),
+            ),
           ),
           const SizedBox(height: 24),
           _sliderTile(

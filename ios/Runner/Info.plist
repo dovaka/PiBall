@@ -4,6 +4,8 @@
 <dict>
 	<key>NSMotionUsageDescription</key>
 	<string>PiBall reads the magnetometer and accelerometer to track the balloon's bearing and elevation.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>PiBall uses your location to look up the local magnetic declination for true-north bearings.</string>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>

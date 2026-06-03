@@ -30,8 +30,9 @@ faithful port **plus** the fixes the original needed:
 | Ascent rate hard-coded to 300 ft/min | Configurable in **Settings** |
 | Heading used `atan` (two quadrants only) | Uses `atan2` (all four) |
 | Reported "wind to", not "wind from" | Re-enabled the `+180°` convention |
-| No true-north correction | **Magnetic declination** setting (East +) |
+| No true-north correction | **Magnetic declination** setting (East +), or **auto from GPS** via the platform geomagnetic model |
 | Dead "Settings" menu item | Real settings screen (rate, interval, cue lead, smoothing, declination), persisted |
+| Screen could sleep mid-run | Screen is kept awake while recording (wakelock) |
 
 ## Run it
 
@@ -62,4 +63,6 @@ legacy-android/  the original 2014 Java/Gradle app, preserved
 - Phone magnetometers are far less precise than an optical theodolite — this is a
   rough field tool. Heavy smoothing (Settings) helps.
 - Azimuth smoothing is naive across the 0/360° wrap (as in the original).
-- Look up your site's magnetic declination (e.g. NOAA) and enter it in Settings.
+- Declination can be set by tapping **Use my location** in Settings (needs a GPS
+  fix + location permission), or entered manually. The model (WMM-2025) is pure
+  Dart, so auto-lookup works on every platform.

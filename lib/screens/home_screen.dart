@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:wakelock_plus/wakelock_plus.dart';
 
 import '../models/app_settings.dart';
 import '../models/reading.dart';
@@ -55,6 +56,7 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void dispose() {
     _ticker?.cancel();
+    WakelockPlus.disable();
     _orientSub?.cancel();
     _orient.dispose();
     super.dispose();
@@ -78,11 +80,13 @@ class _HomeScreenState extends State<HomeScreen> {
     _nextRead = launch;
     _nextWarn = launch.subtract(lead);
     _ticker = Timer.periodic(const Duration(milliseconds: 100), _onTick);
+    WakelockPlus.enable(); // keep the screen on through the run
   }
 
   void _stop() {
     _ticker?.cancel();
     _ticker = null;
+    WakelockPlus.disable();
     setState(() => _running = false);
   }
 
