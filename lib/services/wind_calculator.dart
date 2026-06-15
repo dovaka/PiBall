@@ -7,6 +7,11 @@ const _degPerRad = 180.0 / pi;
 const _secPerHr = 3600.0;
 const _ftPerNM = 6076.12;
 
+/// Below this elevation angle the slant geometry (range = height / tan(el))
+/// amplifies sighting error so much that the layer wind is unreliable. Standard
+/// pibal practice discards low-angle readings; we keep but flag them.
+const kMinReliableElevationDeg = 6.0;
+
 /// Turns a track of balloon sightings into a per-layer wind profile.
 ///
 /// Each sighting's slant geometry (height from ascent rate, horizontal range
@@ -17,7 +22,9 @@ const _ftPerNM = 6076.12;
 ///  * ascent rate is a parameter, not hard-coded to 300 ft/min;
 ///  * heading uses atan2 (all four quadrants), not atan;
 ///  * heading is reported as "wind from" (meteorological), via the +180 the
-///    original left commented out.
+///    original left commented out;
+///  * layers from shallow (< [kMinReliableElevationDeg]) sightings are flagged
+///    [WindLayer.lowElevation] rather than emitted as if trustworthy.
 List<WindLayer> computeWinds(List<Reading> raw, double ascentRateFtPerMin) {
   if (raw.length < 2) return const [];
 
@@ -26,9 +33,13 @@ List<WindLayer> computeWinds(List<Reading> raw, double ascentRateFtPerMin) {
 
   for (var i = 0; i < raw.length - 1; i++) {
     final r = raw[i + 1];
+    final lowEl = r.el < kMinReliableElevationDeg;
 
     final ht = r.time / 60.0 * ascentRateFtPerMin; // height, ft
-    final hd = ht / tan(r.el / _degPerRad); // horizontal range, ft
+    // Clamp elevation away from 0 so tan() can't blow up to infinity; the
+    // layer is flagged unreliable anyway.
+    final elRad = max(r.el, 0.1) / _degPerRad;
+    final hd = ht / tan(elRad); // horizontal range, ft
     final x = hd * cos(r.az / _degPerRad);
     final y = hd * sin(r.az / _degPerRad);
 
@@ -45,7 +56,7 @@ List<WindLayer> computeWinds(List<Reading> raw, double ascentRateFtPerMin) {
     hdg %= 360;
     if (hdg < 0) hdg += 360;
 
-    res.add(WindLayer(h0 + dh / 2.0, hdg, spd));
+    res.add(WindLayer(h0 + dh / 2.0, hdg, spd, lowElevation: lowEl));
 
     x0 = x;
     y0 = y;

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../models/app_settings.dart';
 import '../services/declination_locator.dart';
+import '../services/units.dart';
 
 /// Edits [AppSettings]. Returns the updated settings via Navigator.pop.
 class SettingsScreen extends StatefulWidget {
@@ -17,18 +18,44 @@ class _SettingsScreenState extends State<SettingsScreen> {
   late AppSettings _s = widget.settings;
   bool _locating = false;
 
-  late final _ascent = TextEditingController(
-    text: _s.ascentRateFtPerMin.toStringAsFixed(0),
-  );
+  late final _ascent =
+      TextEditingController(text: _ascentDisplay());
   late final _decl = TextEditingController(
     text: _s.declinationDeg.toStringAsFixed(1),
   );
+
+  Units get _u => Units(_s.units);
+
+  String _ascentDisplay() => _u.ascent(_s.ascentRateFtPerMin).toStringAsFixed(0);
 
   @override
   void dispose() {
     _ascent.dispose();
     _decl.dispose();
     super.dispose();
+  }
+
+  /// Pull the ascent field (in current display units) back into canonical
+  /// ft/min on [_s].
+  void _commitAscent() {
+    final v = double.tryParse(_ascent.text);
+    if (v != null && v > 0) {
+      _s = _s.copyWith(ascentRateFtPerMin: _u.ascentToFtPerMin(v));
+    }
+  }
+
+  void _commitText() {
+    _commitAscent();
+    final decl = double.tryParse(_decl.text);
+    _s = _s.copyWith(declinationDeg: decl);
+  }
+
+  void _onUnitsChanged(UnitSystem units) {
+    _commitAscent(); // capture value in old units first
+    setState(() {
+      _s = _s.copyWith(units: units);
+      _ascent.text = _ascentDisplay(); // re-render in new units
+    });
   }
 
   Future<void> _useLocation() async {
@@ -57,15 +84,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
-  void _commitText() {
-    final ascent = double.tryParse(_ascent.text);
-    final decl = double.tryParse(_decl.text);
-    _s = _s.copyWith(
-      ascentRateFtPerMin: (ascent != null && ascent > 0) ? ascent : null,
-      declinationDeg: decl,
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -73,10 +91,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
+          SegmentedButton<UnitSystem>(
+            segments: const [
+              ButtonSegment(value: UnitSystem.imperial, label: Text('ft · kt')),
+              ButtonSegment(value: UnitSystem.metric, label: Text('m · m/s')),
+            ],
+            selected: {_s.units},
+            onSelectionChanged: (s) => _onUnitsChanged(s.first),
+          ),
+          const SizedBox(height: 20),
           _numberField(
             controller: _ascent,
             label: 'Ascent rate',
-            suffix: 'ft / min',
+            suffix: _u.ascentUnit,
             help: 'Balloon free-lift rate. Every height and speed scales with '
                 'this — set it to your actual inflated rate.',
           ),
@@ -131,13 +158,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
             min: 0,
             max: 0.95,
             divisions: 19,
-            display: _s.averaging == 0
-                ? 'off'
-                : _s.averaging.toStringAsFixed(2),
-            onChanged: (v) =>
-                setState(() => _s = _s.copyWith(averaging: v)),
+            display: _s.averaging == 0 ? 'off' : _s.averaging.toStringAsFixed(2),
+            onChanged: (v) => setState(() => _s = _s.copyWith(averaging: v)),
           ),
-          const SizedBox(height: 32),
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            title: const Text('Spoken countdown'),
+            subtitle: const Text('Say "3, 2, 1, mark" before each sighting'),
+            value: _s.voiceCues,
+            onChanged: (v) => setState(() => _s = _s.copyWith(voiceCues: v)),
+          ),
+          const SizedBox(height: 24),
           FilledButton.icon(
             onPressed: () {
               _commitText();
@@ -162,8 +193,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
       children: [
         TextField(
           controller: controller,
-          keyboardType:
-              const TextInputType.numberWithOptions(decimal: true, signed: true),
+          keyboardType: const TextInputType.numberWithOptions(
+              decimal: true, signed: true),
           decoration: InputDecoration(
             labelText: label,
             suffixText: suffix,
@@ -172,10 +203,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ),
         Padding(
           padding: const EdgeInsets.only(top: 6, left: 4),
-          child: Text(
-            help,
-            style: Theme.of(context).textTheme.bodySmall,
-          ),
+          child: Text(help, style: Theme.of(context).textTheme.bodySmall),
         ),
       ],
     );

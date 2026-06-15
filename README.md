@@ -34,12 +34,30 @@ faithful port **plus** the fixes the original needed:
 | Dead "Settings" menu item | Real settings screen (rate, interval, cue lead, smoothing, declination), persisted |
 | Screen could sleep mid-run | Screen is kept awake while recording (wakelock) |
 
+## Field & quality features
+
+- **Manual capture + re-take** — grab a sighting on demand if you miss a cue, and
+  delete a bad sighting (it recomputes).
+- **Spoken countdown** — optional "3, 2, 1, mark" voice cue (Settings), on top of
+  the haptic cues, so you can keep eyes on the balloon.
+- **Compass-interference warning** — flags an out-of-range magnetic field
+  (uncalibrated/near metal) so you don't trust a bad bearing.
+- **Low-elevation flagging** — layers from shallow (< 6°) sightings are marked
+  unreliable instead of reported as solid numbers.
+- **History + CSV export** — every calculated profile is saved (with GPS + time)
+  and can be shared as CSV from the History screen.
+- **Wind-profile chart** — speed-vs-altitude plot with per-layer "wind from"
+  arrows, toggleable against the table.
+- **Units** — knots/feet or m/s/metres (Settings).
+- **Aim screen** — optional camera view with a crosshair + live AZ/EL overlay.
+- Keeps the screen awake during a run; re-asserts on resume.
+
 ## Run it
 
 ```sh
 flutter pub get
 flutter run            # pick a device: iOS, Android, or chrome
-flutter test           # wind + orientation math unit tests
+flutter test           # wind, orientation, units, declination, widget tests
 ```
 
 > Sensors don't exist in a desktop browser, so the live readout is inert on web;
@@ -49,20 +67,23 @@ flutter test           # wind + orientation math unit tests
 
 ```
 lib/
-  models/      reading, wind_layer, app_settings
+  models/      reading, wind_layer, wind_profile, app_settings
   services/    orientation_service (sensor fusion), wind_calculator,
-               settings_store, cue
-  screens/     home_screen, settings_screen
+               settings_store, cue, units, history_store, csv_export,
+               declination_locator
+  screens/     home_screen, settings_screen, history_screen, aim_screen
+  widgets/     wind_profile_chart
   theme.dart   Material 3, dark by default (dawn launches)
-test/          wind + orientation math
+test/          wind, orientation, units, declination + widget tests
 legacy-android/  the original 2014 Java/Gradle app, preserved
 ```
 
 ## Caveats
 
 - Phone magnetometers are far less precise than an optical theodolite — this is a
-  rough field tool. Heavy smoothing (Settings) helps.
-- Azimuth smoothing is naive across the 0/360° wrap (as in the original).
+  rough field tool. Heavy smoothing (Settings) helps, and PiBall warns on
+  interference.
+- Azimuth smoothing is circular (handles the 0/360° wrap correctly).
 - Declination can be set by tapping **Use my location** in Settings (needs a GPS
   fix + location permission), or entered manually. The model (WMM-2025) is pure
   Dart, so auto-lookup works on every platform.

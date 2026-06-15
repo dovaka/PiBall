@@ -48,6 +48,47 @@ void main() {
     test('fewer than two readings yields nothing', () {
       expect(computeWinds(const [Reading(0, 0, 0)], 300), isEmpty);
     });
+
+    test('flags layers from low-elevation sightings', () {
+      final low = computeWinds(
+          const [Reading(0, 0, 0), Reading(60, 90, 3)], 300);
+      expect(low.single.lowElevation, isTrue);
+
+      final ok = computeWinds(
+          const [Reading(0, 0, 0), Reading(60, 90, 45)], 300);
+      expect(ok.single.lowElevation, isFalse);
+    });
+
+    test('low elevation does not produce infinite speed', () {
+      final res = computeWinds(
+          const [Reading(0, 0, 0), Reading(60, 90, 0)], 300);
+      expect(res.single.speedKts.isFinite, isTrue);
+    });
+  });
+
+  group('smoothAngleDeg', () {
+    // Angular distance to 0°, treating 0 and 360 as equal.
+    double distToZero(double a) {
+      a %= 360;
+      return a > 180 ? 360 - a : a;
+    }
+
+    test('wraps correctly across 0/360', () {
+      // Midpoint of 359° and 1° is 0°, not the naive 180°.
+      expect(distToZero(smoothAngleDeg(359, 1, 0.5)), closeTo(0, 0.5));
+    });
+
+    test('blends within range', () {
+      expect(smoothAngleDeg(10, 20, 0.5), closeTo(15, 0.5));
+    });
+  });
+
+  group('isFieldPlausible', () {
+    test('accepts Earth-like field, rejects interference', () {
+      expect(isFieldPlausible(45), isTrue);
+      expect(isFieldPlausible(5), isFalse);
+      expect(isFieldPlausible(120), isFalse);
+    });
   });
 
   group('computeAzEl', () {

@@ -3,12 +3,33 @@ import 'dart:math';
 
 import 'package:sensors_plus/sensors_plus.dart';
 
-/// True-north azimuth and elevation angle, in degrees.
+/// True-north azimuth and elevation angle (degrees), plus the magnetic field
+/// magnitude in microtesla (used to detect interference / poor calibration).
 class AzEl {
   final double azimuth;
   final double elevation;
+  final double fieldUT;
 
-  const AzEl(this.azimuth, this.elevation);
+  const AzEl(this.azimuth, this.elevation, this.fieldUT);
+}
+
+/// Earth's magnetic field is ~25–65 µT. A reading well outside that band means
+/// nearby metal/electronics or an uncalibrated magnetometer — the bearing is
+/// not trustworthy.
+bool isFieldPlausible(double ut) => ut >= 20 && ut <= 70;
+
+/// Circular exponential smoothing for an angle in degrees: blends as unit
+/// vectors so it behaves correctly across the 0/360° wrap (a plain weighted
+/// average of 359° and 1° would give ~180°). [weightPrev] is the weight on the
+/// previous value, in [0, 1).
+double smoothAngleDeg(double prevDeg, double curDeg, double weightPrev) {
+  final pr = prevDeg * pi / 180.0;
+  final cu = curDeg * pi / 180.0;
+  final x = weightPrev * cos(pr) + (1 - weightPrev) * cos(cu);
+  final y = weightPrev * sin(pr) + (1 - weightPrev) * sin(cu);
+  var deg = atan2(y, x) * 180.0 / pi;
+  if (deg < 0) deg += 360;
+  return deg;
 }
 
 /// Fuses an accelerometer (gravity) vector and a magnetometer vector into an
@@ -54,7 +75,9 @@ AzEl? computeAzEl(List<double> accel, List<double> mag, double declinationDeg) {
 
   // Negate pitch so that pointing up at the balloon reads positive elevation.
   final elDeg = -pitchRad * 180.0 / pi;
-  return AzEl(azDeg, elDeg);
+
+  final fieldUT = sqrt(ex * ex + ey * ey + ez * ez);
+  return AzEl(azDeg, elDeg, fieldUT);
 }
 
 /// Streams a live [AzEl] by combining the device's accelerometer and
