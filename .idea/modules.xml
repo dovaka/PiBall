@@ -2,9 +2,8 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
-      <module fileurl="file://$PROJECT_DIR$/PiBall.iml" filepath="$PROJECT_DIR$/PiBall.iml" />
-      <module fileurl="file://$PROJECT_DIR$/app/app.iml" filepath="$PROJECT_DIR$/app/app.iml" />
+      <module fileurl="file://$PROJECT_DIR$/piball.iml" filepath="$PROJECT_DIR$/piball.iml" />
+      <module fileurl="file://$PROJECT_DIR$/android/piball_android.iml" filepath="$PROJECT_DIR$/android/piball_android.iml" />
     </modules>
   </component>
 </project>
-

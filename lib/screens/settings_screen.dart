@@ -1,0 +1,238 @@
+import 'package:flutter/material.dart';
+
+import '../models/app_settings.dart';
+import '../services/declination_locator.dart';
+import '../services/units.dart';
+
+class SettingsScreen extends StatefulWidget {
+  final AppSettings settings;
+
+  const SettingsScreen({super.key, required this.settings});
+
+  @override
+  State<SettingsScreen> createState() => _SettingsScreenState();
+}
+
+class _SettingsScreenState extends State<SettingsScreen> {
+  late AppSettings _s = widget.settings;
+  bool _locating = false;
+
+  late final _ascent =
+      TextEditingController(text: _ascentDisplay());
+  late final _decl = TextEditingController(
+    text: _s.declinationDeg.toStringAsFixed(1),
+  );
+
+  Units get _u => Units(_s.units);
+
+  String _ascentDisplay() => _u.ascent(_s.ascentRateFtPerMin).toStringAsFixed(0);
+
+  @override
+  void dispose() {
+    _ascent.dispose();
+    _decl.dispose();
+    super.dispose();
+  }
+
+  void _commitAscent() {
+    final v = double.tryParse(_ascent.text);
+    if (v != null && v > 0) {
+      _s = _s.copyWith(ascentRateFtPerMin: _u.ascentToFtPerMin(v));
+    }
+  }
+
+  void _commitText() {
+    _commitAscent();
+    final decl = double.tryParse(_decl.text);
+    _s = _s.copyWith(declinationDeg: decl);
+  }
+
+  void _onUnitsChanged(UnitSystem units) {
+    _commitAscent();
+    setState(() {
+      _s = _s.copyWith(units: units);
+      _ascent.text = _ascentDisplay();
+    });
+  }
+
+  Future<void> _useLocation() async {
+    setState(() => _locating = true);
+    try {
+      final r = await fetchDeclinationFromLocation();
+      if (!mounted) return;
+      setState(() {
+        _s = _s.copyWith(declinationDeg: r.declinationDeg);
+        _decl.text = r.declinationDeg.toStringAsFixed(1);
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Declination ${r.declinationDeg.toStringAsFixed(1)}° at '
+            '${r.latitude.toStringAsFixed(3)}, ${r.longitude.toStringAsFixed(3)}',
+          ),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('$e')));
+    } finally {
+      if (mounted) setState(() => _locating = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Settings')),
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          SegmentedButton<UnitSystem>(
+            segments: const [
+              ButtonSegment(value: UnitSystem.imperial, label: Text('ft · kt')),
+              ButtonSegment(value: UnitSystem.metric, label: Text('m · m/s')),
+            ],
+            selected: {_s.units},
+            onSelectionChanged: (s) => _onUnitsChanged(s.first),
+          ),
+          const SizedBox(height: 20),
+          _numberField(
+            controller: _ascent,
+            label: 'Ascent rate',
+            suffix: _u.ascentUnit,
+            help: 'Balloon free-lift rate. Every height and speed scales with '
+                'this — set it to your actual inflated rate.',
+          ),
+          const SizedBox(height: 16),
+          _numberField(
+            controller: _decl,
+            label: 'Magnetic declination',
+            suffix: '° East',
+            help: 'Added to the compass bearing for true north. Look up your '
+                'site (e.g. NOAA), East positive, West negative.',
+          ),
+          const SizedBox(height: 8),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: OutlinedButton.icon(
+              onPressed: _locating ? null : _useLocation,
+              icon: _locating
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.my_location),
+              label: Text(_locating ? 'Locating…' : 'Use my location'),
+            ),
+          ),
+          const SizedBox(height: 24),
+          _sliderTile(
+            label: 'Read interval',
+            value: _s.readIntervalSec.toDouble(),
+            min: 5,
+            max: 60,
+            divisions: 11,
+            display: '${_s.readIntervalSec} s',
+            onChanged: (v) =>
+                setState(() => _s = _s.copyWith(readIntervalSec: v.round())),
+          ),
+          _sliderTile(
+            label: 'Warning cue lead',
+            value: _s.preToneMs.toDouble(),
+            min: 0,
+            max: 3000,
+            divisions: 6,
+            display: '${(_s.preToneMs / 1000).toStringAsFixed(1)} s',
+            onChanged: (v) => setState(
+              () => _s = _s.copyWith(preToneMs: (v / 500).round() * 500),
+            ),
+          ),
+          _sliderTile(
+            label: 'Smoothing',
+            value: _s.averaging,
+            min: 0,
+            max: 0.95,
+            divisions: 19,
+            display: _s.averaging == 0 ? 'off' : _s.averaging.toStringAsFixed(2),
+            onChanged: (v) => setState(() => _s = _s.copyWith(averaging: v)),
+          ),
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            title: const Text('Spoken countdown'),
+            subtitle: const Text('Say "3, 2, 1, mark" before each sighting'),
+            value: _s.voiceCues,
+            onChanged: (v) => setState(() => _s = _s.copyWith(voiceCues: v)),
+          ),
+          const SizedBox(height: 24),
+          FilledButton.icon(
+            onPressed: () {
+              _commitText();
+              Navigator.pop(context, _s);
+            },
+            icon: const Icon(Icons.check),
+            label: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _numberField({
+    required TextEditingController controller,
+    required String label,
+    required String suffix,
+    required String help,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        TextField(
+          controller: controller,
+          keyboardType: const TextInputType.numberWithOptions(
+              decimal: true, signed: true),
+          decoration: InputDecoration(
+            labelText: label,
+            suffixText: suffix,
+            border: const OutlineInputBorder(),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.only(top: 6, left: 4),
+          child: Text(help, style: Theme.of(context).textTheme.bodySmall),
+        ),
+      ],
+    );
+  }
+
+  Widget _sliderTile({
+    required String label,
+    required double value,
+    required double min,
+    required double max,
+    required int divisions,
+    required String display,
+    required ValueChanged<double> onChanged,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(label, style: Theme.of(context).textTheme.titleMedium),
+            Text(display, style: Theme.of(context).textTheme.titleMedium),
+          ],
+        ),
+        Slider(
+          value: value,
+          min: min,
+          max: max,
+          divisions: divisions,
+          onChanged: onChanged,
+        ),
+      ],
+    );
+  }
+}
